@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="mb-3">Devices</h1>
+<form class="row g-2 mb-4" method="POST" action="/devices/new">
+  <div class="col-md-3"><input class="form-control" name="name" placeholder="Device name"></div>
+  <div class="col-md-3"><input class="form-control" name="host" placeholder="Host/IP"></div>
+  <div class="col-md-3">
+    <select class="form-select" name="kind">
+      <option value="generic">Generic</option>
+      <option value="pos">POS</option>
+      <option value="printer">Printer</option>
+      <option value="server">Server</option>
+      <option value="router">Router</option>
+    </select>
+  </div>
+  <div class="col-md-3"><button class="btn btn-primary w-100" type="submit">Add Device</button></div>
+</form>
+
+<table class="table table-striped table-hover">
+  <thead><tr><th>ID</th><th>Name</th><th>Host</th><th>Kind</th><th>Actions</th></tr></thead>
+  <tbody>
+  {% for d in devices %}
+    <tr>
+      <td>{{ d.id }}</td>
+      <td>{{ d.name }}</td>
+      <td>{{ d.host }}</td>
+      <td>{{ d.kind }}</td>
+      <td>
+        <form method="POST" action="/devices/{{ d.id }}/delete" onsubmit="return confirm('Delete device?')">
+          <button class="btn btn-sm btn-outline-danger">Delete</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
