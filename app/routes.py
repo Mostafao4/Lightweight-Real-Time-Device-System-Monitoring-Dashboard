@@ -1,7 +1,21 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from .models import db, Device
+from sqlalchemy import desc
+# ...
+
+
 
 bp = Blueprint("routes", __name__)
+
+@bp.route("/")
+def index():
+    devices = Device.query.order_by(Device.id.asc()).all()
+    latest = {}
+    from .models import CheckResult
+    for d in devices:
+        cr = CheckResult.query.filter_by(device_id=d.id).order_by(desc(CheckResult.created_at)).first()
+        latest[d.id] = cr
+    return render_template("index.html", devices=devices, latest=latest)
 
 @bp.route("/")
 def index():

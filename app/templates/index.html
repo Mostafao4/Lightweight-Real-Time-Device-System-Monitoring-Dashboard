@@ -16,22 +16,34 @@
   <div class="col-md-3"><button class="btn btn-primary w-100" type="submit">Add Device</button></div>
 </form>
 
-<table class="table table-striped table-hover">
-  <thead><tr><th>ID</th><th>Name</th><th>Host</th><th>Kind</th><th>Actions</th></tr></thead>
+<table class="table table-striped table-hover"> <thead><tr><th>ID</th><th>Name</th><th>Host</th><th>Kind</th><th>Actions</th></tr></thead>
+  <thead><tr><th>ID</th><th>Name</th><th>Host</th><th>Kind</th><th>Status</th><th>Latency</th><th>Actions</th></tr></thead>
   <tbody>
-  {% for d in devices %}
-    <tr>
-      <td>{{ d.id }}</td>
-      <td>{{ d.name }}</td>
-      <td>{{ d.host }}</td>
-      <td>{{ d.kind }}</td>
-      <td>
-        <form method="POST" action="/devices/{{ d.id }}/delete" onsubmit="return confirm('Delete device?')">
-          <button class="btn btn-sm btn-outline-danger">Delete</button>
-        </form>
-      </td>
-    </tr>
-  {% endfor %}
-  </tbody>
+    {% for d in devices %}
+      {% set cr = latest.get(d.id) %}
+      <tr>
+        <td>{{ d.id }}</td>
+        <td>{{ d.name }}</td>
+        <td>{{ d.host }}</td>
+        <td>{{ d.kind }}</td>
+        <td>
+          {% if cr %}
+            {% if cr.status == 'up' %}<span class="badge bg-success">UP</span>
+            {% elif cr.status == 'degraded' %}<span class="badge bg-warning text-dark">DEGRADED</span>
+            {% else %}<span class="badge bg-danger">DOWN</span>{% endif %}
+          {% else %}<span class="badge bg-secondary">N/A</span>{% endif %}
+        </td>
+        <td>
+          {% if cr and cr.latency_ms %}{{ cr.latency_ms }} ms{% else %}-{% endif %}
+        </td>
+        <td>
+          <form method="POST" action="/devices/{{ d.id }}/delete" onsubmit="return confirm('Delete device?')">
+            <button class="btn btn-sm btn-outline-danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+    
 </table>
 {% endblock %}
