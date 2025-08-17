@@ -17,11 +17,6 @@ def index():
         latest[d.id] = cr
     return render_template("index.html", devices=devices, latest=latest)
 
-@bp.route("/")
-def index():
-    devices = Device.query.order_by(Device.id.asc()).all()
-    return render_template("index.html", devices=devices)
-
 @bp.route("/devices/new", methods=["POST"])
 def add_device():
     name = request.form.get("name","").strip()
