@@ -15,7 +15,6 @@ print("WORKER DB_URL =", DB_URL)
 
 engine = create_engine(DB_URL, echo=False, future=True)
 SessionLocal = sessionmaker(bind=engine)
-
 def tcp_ping(host: str, timeout_ms=1000):
     start = time.time()
     try:
