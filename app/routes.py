@@ -32,8 +32,14 @@ def index():
 # Use POST-only route for deletion
 @bp.post("/devices/<int:device_id>/delete")
 def delete_device(device_id):
+    # 1) delete child rows first
+    CheckResult.query.filter_by(device_id=device_id).delete(synchronize_session=False)
+    db.session.flush()
+
+    # 2) delete the device
     d = Device.query.get_or_404(device_id)
     db.session.delete(d)
     db.session.commit()
+
     flash("Device deleted.", "success")
     return redirect(url_for("routes.index"))
