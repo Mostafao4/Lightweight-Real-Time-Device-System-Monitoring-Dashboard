@@ -1,45 +1,77 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, jsonify
+from app import db
+from app.models import Device, CheckResult
 from sqlalchemy import desc
-from .models import db, Device, CheckResult
 
-# Make sure this name matches what you use in url_for(...)
 bp = Blueprint("routes", __name__)
 
+# ------------------------------
+# Dashboard page
+# ------------------------------
 @bp.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "POST":
-        name = request.form.get("name", "").strip()
-        host = request.form.get("host", "").strip()
-        kind = request.form.get("kind", "generic").strip()
-        if not name or not host:
-            flash("Name and host are required.", "danger")
-            return redirect(url_for("routes.index"))
-        db.session.add(Device(name=name, host=host, kind=kind))
-        db.session.commit()
-        flash("Device added.", "success")
+        # Add new device
+        name = request.form.get("name")
+        host = request.form.get("host")
+        kind = request.form.get("kind", "generic")
+
+        if name and host:
+            device = Device(name=name, host=host, kind=kind)
+            db.session.add(device)
+            db.session.commit()
         return redirect(url_for("routes.index"))
 
     devices = Device.query.order_by(Device.id.asc()).all()
     latest = {}
     for d in devices:
-        cr = (CheckResult.query
-              .filter_by(device_id=d.id)
-              .order_by(desc(CheckResult.created_at))
-              .first())
+        cr = (
+            CheckResult.query.filter_by(device_id=d.id)
+            .order_by(desc(CheckResult.created_at))
+            .first()
+        )
         latest[d.id] = cr
+
     return render_template("index.html", devices=devices, latest=latest)
 
-# Use POST-only route for deletion
+
+# ------------------------------
+# Delete device
+# ------------------------------
 @bp.post("/devices/<int:device_id>/delete")
 def delete_device(device_id):
-    # 1) delete child rows first
-    CheckResult.query.filter_by(device_id=device_id).delete(synchronize_session=False)
-    db.session.flush()
+    device = Device.query.get_or_404(device_id)
 
-    # 2) delete the device
-    d = Device.query.get_or_404(device_id)
-    db.session.delete(d)
+    # also delete check results for that device
+    CheckResult.query.filter_by(device_id=device.id).delete()
+
+    db.session.delete(device)
     db.session.commit()
-
-    flash("Device deleted.", "success")
     return redirect(url_for("routes.index"))
+
+
+# ------------------------------
+# JSON API for AJAX updates
+# ------------------------------
+@bp.get("/api/devices")
+def api_devices():
+    devices = Device.query.order_by(Device.id.asc()).all()
+    out = []
+    for d in devices:
+        cr = (
+            CheckResult.query.filter_by(device_id=d.id)
+            .order_by(desc(CheckResult.created_at))
+            .first()
+        )
+        out.append(
+            {
+                "id": d.id,
+                "name": d.name,
+                "host": d.host,
+                "kind": d.kind,
+                "status": cr.status if cr else "Unknown",
+                "latency_ms": cr.latency_ms if cr and cr.latency_ms is not None else None,
+                "last_check": cr.created_at.strftime("%Y-%m-%d %H:%M:%S") if cr else None,
+            }
+        )
+    return jsonify(out)

@@ -7,7 +7,7 @@ from alerts import send_email, send_telegram
 
 load_dotenv()
 DB_URL           = os.getenv("DATABASE_URL", "sqlite:///instance/monitor.db")
-INTERVAL_SECONDS = int(os.getenv("INTERVAL_SECONDS", "30"))
+INTERVAL_SECONDS = int(os.getenv("INTERVAL_SECONDS", "10"))
 PING_TIMEOUT_MS  = int(os.getenv("PING_TIMEOUT_MS", "1000"))
 DRY_RUN          = os.getenv("DRY_RUN_ALERTS", "false").lower() == "true"
 
@@ -15,7 +15,7 @@ print("WORKER DB_URL =", DB_URL)
 
 engine = create_engine(DB_URL, echo=False, future=True)
 SessionLocal = sessionmaker(bind=engine)
-def tcp_ping(host: str, timeout_ms=1000):
+def tcp_ping(host: str, timeout_ms=500):
     start = time.time()
     try:
         with socket.create_connection((host, 80), timeout=timeout_ms/1000.0):

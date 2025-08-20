@@ -33,14 +33,14 @@
         <th>Actions</th>
       </tr>
     </thead>
-    <tbody>
+    <tbody id="devices-body">
       {% for d in devices %}
       {% set cr = latest.get(d.id) %}
-      <tr>
-        <td>{{ d.name }}</td>
-        <td>{{ d.host }}</td>
-        <td>{{ d.kind }}</td>
-        <td>
+      <tr id="row-{{ d.id }}">
+        <td class="c-name">{{ d.name }}</td>
+        <td class="c-host">{{ d.host }}</td>
+        <td class="c-kind">{{ d.kind }}</td>
+        <td class="c-status">
           {% if cr %}
             {% if cr.status == "up" %}
               <span class="badge bg-success">UP</span>
@@ -53,17 +53,80 @@
             <span class="badge bg-secondary">Unknown</span>
           {% endif %}
         </td>
-        <td>{{ (cr.latency_ms ~ ' ms') if cr and cr.latency_ms is not none else '-' }}</td>
-        <td>{{ cr.created_at.strftime('%Y-%m-%d %H:%M:%S') if cr else 'never' }}</td>
+        <td class="c-latency">{{ (cr.latency_ms ~ ' ms') if cr and cr.latency_ms is not none else '-' }}</td>
+        <td class="c-last">{{ cr.created_at.strftime('%Y-%m-%d %H:%M:%S') if cr else 'never' }}</td>
         <td>
           <form method="post" action="{{ url_for('routes.delete_device', device_id=d.id) }}">
-            <button class="btn btn-sm btn-danger" onclick="return confirm('Delete this device?')">
-              Delete
-            </button>
+            <button class="btn btn-sm btn-danger" onclick="return confirm('Delete this device?')">Delete</button>
           </form>
         </td>
       </tr>
       {% endfor %}
     </tbody>
+    
   </table>
+
+  <script>
+    function badge(status) {
+      if (status === "up")       return '<span class="badge bg-success">UP</span>';
+      if (status === "degraded") return '<span class="badge bg-warning text-dark">DEGRADED</span>';
+      if (status === "down")     return '<span class="badge bg-danger">DOWN</span>';
+      return '<span class="badge bg-secondary">Unknown</span>';
+    }
+    
+    async function refreshDevices() {
+      try {
+        const resp = await fetch("{{ url_for('routes.api_devices') }}", { cache: "no-store" });
+        if (!resp.ok) return;
+        const data = await resp.json();
+    
+        const tbody = document.getElementById("devices-body");
+        const seen = new Set();
+    
+        data.forEach(dev => {
+          seen.add(dev.id);
+          const row = document.getElementById(`row-${dev.id}`);
+          const latency = (dev.latency_ms ?? "-");
+          const last = (dev.last_check ?? "never");
+    
+          if (row) {
+            row.querySelector(".c-status").innerHTML = badge(dev.status);
+            row.querySelector(".c-latency").textContent = (latency === "-" ? "-" : `${latency} ms`);
+            row.querySelector(".c-last").textContent = last;
+          } else {
+            // device added elsewhere: append new row
+            const tr = document.createElement("tr");
+            tr.id = `row-${dev.id}`;
+            tr.innerHTML = `
+              <td class="c-name">${dev.name}</td>
+              <td class="c-host">${dev.host}</td>
+              <td class="c-kind">${dev.kind}</td>
+              <td class="c-status">${badge(dev.status)}</td>
+              <td class="c-latency">${latency === "-" ? "-" : latency + " ms"}</td>
+              <td class="c-last">${last}</td>
+              <td>
+                <form method="post" action="/devices/${dev.id}/delete">
+                  <button class="btn btn-sm btn-danger" onclick="return confirm('Delete this device?')">Delete</button>
+                </form>
+              </td>
+            `;
+            tbody.appendChild(tr);
+          }
+        });
+    
+        // (optional) remove rows no longer in DB
+        for (const tr of Array.from(tbody.querySelectorAll("tr"))) {
+          const id = parseInt(tr.id.replace("row-", ""), 10);
+          if (!seen.has(id)) tr.remove();
+        }
+      } catch (e) {
+        console.warn("refreshDevices error:", e);
+      }
+    }
+    
+    // run immediately + every 10s (adjust interval as you like)
+    refreshDevices();
+    setInterval(refreshDevices, 10000);
+    </script>
+    
 {% endblock %}
