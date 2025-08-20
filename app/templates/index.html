@@ -2,9 +2,19 @@
 {% block title %}Dashboard{% endblock %}
 
 {% block content %}
-  <h1 class="mb-4">Device Dashboard</h1>
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1>Device Dashboard</h1>
+    <div>
+      {% if session.logged_in %}
+        <a href="{{ url_for('routes.logout') }}" class="btn btn-outline-danger">Logout</a>
+      {% else %}
+        <a href="{{ url_for('routes.login') }}" class="btn btn-outline-primary">Login</a>
+      {% endif %}
+    </div>
+  </div>
 
-  <!-- Add Device Form -->
+  <!-- Add Device Form (only for logged-in users) -->
+  {% if session.logged_in %}
   <form method="post" class="row g-3 mb-4">
     <div class="col-md-4">
       <input name="name" class="form-control" placeholder="Device name" required>
@@ -19,6 +29,7 @@
       <button class="btn btn-primary w-100">Add</button>
     </div>
   </form>
+  {% endif %}
 
   <!-- Devices Table -->
   <table class="table table-bordered table-striped align-middle">
@@ -30,7 +41,7 @@
         <th>Status</th>
         <th>Latency (ms)</th>
         <th>Last Check</th>
-        <th>Actions</th>
+        {% if session.logged_in %}<th>Actions</th>{% endif %}
       </tr>
     </thead>
     <tbody id="devices-body">
@@ -55,11 +66,13 @@
         </td>
         <td class="c-latency">{{ (cr.latency_ms ~ ' ms') if cr and cr.latency_ms is not none else '-' }}</td>
         <td class="c-last">{{ cr.created_at.strftime('%Y-%m-%d %H:%M:%S') if cr else 'never' }}</td>
+        {% if session.logged_in %}
         <td>
           <form method="post" action="{{ url_for('routes.delete_device', device_id=d.id) }}">
             <button class="btn btn-sm btn-danger" onclick="return confirm('Delete this device?')">Delete</button>
           </form>
         </td>
+        {% endif %}
       </tr>
       {% endfor %}
     </tbody>
@@ -67,6 +80,8 @@
   </table>
 
   <script>
+    const canDelete = {{ 'true' if session.logged_in else 'false' }};
+    
     function badge(status) {
       if (status === "up")       return '<span class="badge bg-success">UP</span>';
       if (status === "degraded") return '<span class="badge bg-warning text-dark">DEGRADED</span>';
@@ -94,7 +109,7 @@
             row.querySelector(".c-latency").textContent = (latency === "-" ? "-" : `${latency} ms`);
             row.querySelector(".c-last").textContent = last;
           } else {
-            // device added elsewhere: append new row
+            // new row
             const tr = document.createElement("tr");
             tr.id = `row-${dev.id}`;
             tr.innerHTML = `
@@ -104,17 +119,18 @@
               <td class="c-status">${badge(dev.status)}</td>
               <td class="c-latency">${latency === "-" ? "-" : latency + " ms"}</td>
               <td class="c-last">${last}</td>
-              <td>
-                <form method="post" action="/devices/${dev.id}/delete">
-                  <button class="btn btn-sm btn-danger" onclick="return confirm('Delete this device?')">Delete</button>
-                </form>
-              </td>
+              ${canDelete ? `
+                <td>
+                  <form method="post" action="/devices/${dev.id}/delete">
+                    <button class="btn btn-sm btn-danger" onclick="return confirm('Delete this device?')">Delete</button>
+                  </form>
+                </td>` : ``}
             `;
             tbody.appendChild(tr);
           }
         });
     
-        // (optional) remove rows no longer in DB
+        // remove rows no longer present
         for (const tr of Array.from(tbody.querySelectorAll("tr"))) {
           const id = parseInt(tr.id.replace("row-", ""), 10);
           if (!seen.has(id)) tr.remove();
@@ -124,7 +140,7 @@
       }
     }
     
-    // run immediately + every 10s (adjust interval as you like)
+    // run now, then every 10s (adjust as needed)
     refreshDevices();
     setInterval(refreshDevices, 10000);
     </script>

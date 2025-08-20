@@ -1,17 +1,67 @@
-from flask import Blueprint, render_template, request, redirect, url_for, jsonify
+from flask import (
+    Blueprint, render_template, request, redirect,
+    url_for, jsonify, session, flash
+)
 from app import db
 from app.models import Device, CheckResult
 from sqlalchemy import desc
+from functools import wraps
+import os
 
 bp = Blueprint("routes", __name__)
 
+# Load admin creds from environment
+ADMIN_USER = os.getenv("ADMIN_USER", "admin")
+ADMIN_PASS = os.getenv("ADMIN_PASS", "password")
+
+
 # ------------------------------
-# Dashboard page
+# Helper: login required decorator
+# ------------------------------
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get("logged_in"):
+            flash("You must log in first", "danger")
+            return redirect(url_for("routes.login"))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+# ------------------------------
+# Login + Logout
+# ------------------------------
+@bp.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        user = request.form.get("username")
+        pw = request.form.get("password")
+        if user == ADMIN_USER and pw == ADMIN_PASS:
+            session["logged_in"] = True
+            flash("Welcome back!", "success")
+            return redirect(url_for("routes.index"))
+        else:
+            flash("Invalid credentials", "danger")
+    return render_template("login.html")
+
+
+@bp.route("/logout")
+def logout():
+    session.pop("logged_in", None)
+    flash("Logged out", "info")
+    return redirect(url_for("routes.login"))
+
+
+# ------------------------------
+# Dashboard
 # ------------------------------
 @bp.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "POST":
-        # Add new device
+        if not session.get("logged_in"):
+            flash("Login required to add devices", "danger")
+            return redirect(url_for("routes.login"))
+
         name = request.form.get("name")
         host = request.form.get("host")
         kind = request.form.get("kind", "generic")
@@ -39,19 +89,21 @@ def index():
 # Delete device
 # ------------------------------
 @bp.post("/devices/<int:device_id>/delete")
+@login_required
 def delete_device(device_id):
     device = Device.query.get_or_404(device_id)
 
-    # also delete check results for that device
+    # Clean up related results first
     CheckResult.query.filter_by(device_id=device.id).delete()
 
     db.session.delete(device)
     db.session.commit()
+    flash("Device deleted", "success")
     return redirect(url_for("routes.index"))
 
 
 # ------------------------------
-# JSON API for AJAX updates
+# JSON API (open, read-only)
 # ------------------------------
 @bp.get("/api/devices")
 def api_devices():
