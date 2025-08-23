@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}{{ device.name }} History{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="mb-0">{{ device.name }} <small class="text-muted">({{ device.host }} · {{ device.kind|upper }})</small></h2>
+  <div>
+    <a class="btn btn-outline-secondary" href="{{ url_for('routes.index') }}">← Back</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('routes.device_history_csv', device_id=device.id) }}{% if request.query_string %}?{{ request.query_string|safe }}{% endif %}">Export CSV</a>
+  </div>
+</div>
+
+<!-- Filters -->
+<form class="row g-2 mb-3" method="get">
+  <div class="col-auto">
+    <label class="form-label">From</label>
+    <input type="text" class="form-control" name="from" placeholder="YYYY-MM-DD or ISO" value="{{ request.args.get('from','') }}">
+  </div>
+  <div class="col-auto">
+    <label class="form-label">To</label>
+    <input type="text" class="form-control" name="to" placeholder="YYYY-MM-DD or ISO" value="{{ request.args.get('to','') }}">
+  </div>
+  <div class="col-auto">
+    <label class="form-label">Max points</label>
+    <input type="number" class="form-control" name="limit" min="50" max="5000" value="{{ request.args.get('limit','200') }}">
+  </div>
+  <div class="col-auto align-self-end">
+    <button class="btn btn-primary">Apply</button>
+  </div>
+</form>
+
+<!-- Chart.js line for latency -->
+<div class="card mb-3">
+  <div class="card-body">
+    <h5 class="card-title">Latency over time</h5>
+    <canvas id="latencyChart" height="120"></canvas>
+    <div class="small text-muted mt-2">
+      Note: non-responding checks (DOWN) are omitted from the latency line; see table below for full status history.
+    </div>
+  </div>
+</div>
+
+<!-- Status timeline (table) -->
+<div class="card">
+  <div class="card-body">
+    <h5 class="card-title">Check history</h5>
+    <div class="table-responsive">
+      <table class="table table-sm align-middle">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Status</th>
+            <th>Latency</th>
+            <th>Message</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in results %}
+          <tr>
+            <td class="text-nowrap">{{ r.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+            <td>
+              {% if r.status == 'up' %}
+                <span class="badge bg-success">UP</span>
+              {% elif r.status == 'degraded' %}
+                <span class="badge bg-warning text-dark">DEGRADED</span>
+              {% else %}
+                <span class="badge bg-danger">DOWN</span>
+              {% endif %}
+            </td>
+            <td>{{ (r.latency_ms ~ ' ms') if r.latency_ms is not none else '-' }}</td>
+            <td>{{ r.message or '' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+  // Prepare data for latency chart (omit null latencies)
+  const points = [
+    {% for r in results_chrono %}
+      {% if r.latency_ms is not none %}
+        { x: "{{ r.created_at.strftime('%Y-%m-%d %H:%M:%S') }}", y: {{ r.latency_ms }} },
+      {% endif %}
+    {% endfor %}
+  ];
+
+  const ctx = document.getElementById('latencyChart').getContext('2d');
+  const chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      datasets: [{
+        label: 'Latency (ms)',
+        data: points,
+        tension: 0.25,
+        fill: false,
+        pointRadius: 2
+      }]
+    },
+    options: {
+      parsing: false,
+      scales: {
+        x: { type: 'time', time: { parser: 'YYYY-MM-DD HH:mm:ss', tooltipFormat: 'YYYY-MM-DD HH:mm:ss', displayFormats: { minute: 'HH:mm', hour: 'MM-dd HH:mm' } } },
+        y: { title: { display: true, text: 'ms' }, beginAtZero: true }
+      },
+      plugins: { legend: { display: true } },
+      maintainAspectRatio: false
+    }
+  });
+</script>
+{% endblock %}

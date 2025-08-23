@@ -1,20 +1,122 @@
 from flask import (
-    Blueprint, render_template, request, redirect,
+    Response, Blueprint, render_template, request, redirect,
     url_for, jsonify, session, flash, abort, request as flask_request
 )
 from app import db
 from app.models import Device, CheckResult
-from sqlalchemy import desc
+from sqlalchemy import desc, asc
 from functools import wraps
 import os
 import re
 from datetime import datetime, timezone
+import csv
+import io
 
 bp = Blueprint("routes", __name__)
 
 # ---- Auth config from environment
 ADMIN_USER = os.getenv("ADMIN_USER", "admin")
 ADMIN_PASS = os.getenv("ADMIN_PASS", "password")
+
+
+
+# --- helper to parse ?from= & ?to= (YYYY-MM-DD or ISO)
+def _parse_dt(s):
+    if not s: return None
+    try:
+        # accepts '2025-08-24' or '2025-08-24 15:20:00'
+        return datetime.fromisoformat(s)
+    except ValueError:
+        return None
+
+@bp.get("/devices/<int:device_id>")
+def device_detail(device_id):
+    device = Device.query.get_or_404(device_id)
+
+    # filters
+    q_from = _parse_dt(request.args.get("from"))
+    q_to   = _parse_dt(request.args.get("to"))
+    limit  = int(request.args.get("limit", "200"))  # cap on points shown
+    limit  = max(10, min(limit, 2000))
+
+    q = CheckResult.query.filter_by(device_id=device.id)
+    if q_from:
+        q = q.filter(CheckResult.created_at >= q_from)
+    if q_to:
+        q = q.filter(CheckResult.created_at <= q_to)
+    results = (
+        q.order_by(desc(CheckResult.created_at))
+         .limit(limit)
+         .all()
+    )
+    # for charts it’s nice to have chronological order
+    results_chrono = list(reversed(results))
+
+    return render_template(
+        "device_detail.html",
+        device=device,
+        results=results,               # newest → oldest (for table)
+        results_chrono=results_chrono  # oldest → newest (for chart)
+    )
+
+@bp.get("/api/devices/<int:device_id>/history")
+def api_device_history(device_id):
+    device = Device.query.get_or_404(device_id)
+    q_from = _parse_dt(request.args.get("from"))
+    q_to   = _parse_dt(request.args.get("to"))
+    limit  = int(request.args.get("limit", "500"))
+    limit  = max(10, min(limit, 5000))
+
+    q = CheckResult.query.filter_by(device_id=device.id)
+    if q_from:
+        q = q.filter(CheckResult.created_at >= q_from)
+    if q_to:
+        q = q.filter(CheckResult.created_at <= q_to)
+    rows = (
+        q.order_by(asc(CheckResult.created_at))
+         .limit(limit)
+         .all()
+    )
+    def to_dict(r):
+        return {
+            "id": r.id,
+            "status": r.status,
+            "latency_ms": r.latency_ms,
+            "message": r.message,
+            "created_at": r.created_at.isoformat(sep=" ", timespec="seconds"),
+        }
+    return jsonify({
+        "device": {"id": device.id, "name": device.name, "host": device.host, "kind": device.kind},
+        "count": len(rows),
+        "items": [to_dict(r) for r in rows]
+    })
+
+@bp.get("/devices/<int:device_id>/history.csv")
+def device_history_csv(device_id):
+    device = Device.query.get_or_404(device_id)
+    q_from = _parse_dt(request.args.get("from"))
+    q_to   = _parse_dt(request.args.get("to"))
+
+    q = CheckResult.query.filter_by(device_id=device.id)
+    if q_from:
+        q = q.filter(CheckResult.created_at >= q_from)
+    if q_to:
+        q = q.filter(CheckResult.created_at <= q_to)
+    rows = q.order_by(asc(CheckResult.created_at)).all()
+
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["timestamp", "status", "latency_ms", "message"])
+    for r in rows:
+        w.writerow([r.created_at.isoformat(sep=" ", timespec="seconds"), r.status, (r.latency_ms if r.latency_ms is not None else ""), r.message or ""])
+    out = buf.getvalue()
+    return Response(
+        out,
+        mimetype="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{device.name}-history.csv"'}
+    )
+
+
 
 # ---- No-cache for auth-sensitive pages
 @bp.after_app_request

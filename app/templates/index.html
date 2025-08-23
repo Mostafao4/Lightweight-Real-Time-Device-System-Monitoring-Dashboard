@@ -55,7 +55,9 @@
       {% for d in devices %}
       {% set cr = latest.get(d.id) %}
       <tr id="row-{{ d.id }}">
-        <td class="c-name">{{ d.name }}</td>
+        <td class="c-name">
+          <a href="{{ url_for('routes.device_detail', device_id=d.id) }}">{{ d.name }}</a>
+        </td>
         <td class="c-host">{{ d.host }}</td>
         <td class="c-kind text-uppercase">{{ d.kind }}</td>
         <td class="c-status">
@@ -96,6 +98,10 @@
     return '<span class="badge bg-secondary">Unknown</span>';
   }
 
+  function nameLink(dev) {
+    return `<a href="/devices/${dev.id}">${dev.name}</a>`;
+  }
+
   async function refreshDevices() {
     try {
       const resp = await fetch("{{ url_for('routes.api_devices') }}", { cache: "no-store" });
@@ -118,13 +124,13 @@
           row.querySelector(".c-last").textContent = last;
           row.querySelector(".c-kind").textContent = kind;
           row.querySelector(".c-host").textContent = dev.host;
-          row.querySelector(".c-name").textContent = dev.name;
+          row.querySelector(".c-name").innerHTML = nameLink(dev);
         } else {
           // New device appeared: append row
           const tr = document.createElement("tr");
           tr.id = `row-${dev.id}`;
           tr.innerHTML = `
-            <td class="c-name">${dev.name}</td>
+            <td class="c-name">${nameLink(dev)}</td>
             <td class="c-host">${dev.host}</td>
             <td class="c-kind text-uppercase">${kind}</td>
             <td class="c-status">${badge(dev.status)}</td>
