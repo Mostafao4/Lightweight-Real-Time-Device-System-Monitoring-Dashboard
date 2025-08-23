@@ -6,7 +6,7 @@ from app.models import Device, CheckResult
 from alerts import send_email, send_telegram
 
 load_dotenv()
-DB_URL           = os.getenv("DATABASE_URL", "sqlite:///C:\Projects\Q3 2025\Lightweight-Real-Time-Device-System-Monitoring-Dashboard\instance\monitor.db")
+DB_URL           = os.getenv("DATABASE_URL", "sqlite:///instance\monitor.db")
 INTERVAL_SECONDS = int(os.getenv("INTERVAL_SECONDS", "10"))
 PING_TIMEOUT_MS  = int(os.getenv("PING_TIMEOUT_MS", "1000"))
 DRY_RUN          = os.getenv("DRY_RUN_ALERTS", "false").lower() == "true"
