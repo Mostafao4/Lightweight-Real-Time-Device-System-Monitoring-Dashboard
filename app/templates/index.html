@@ -16,21 +16,14 @@
   <!-- Add Device Form (only for logged-in users) -->
   {% if session.logged_in %}
   <form method="post" class="row g-3 mb-4">
-    <div class="col-md-3">
+    <div class="col-md-4">
       <input name="name" class="form-control" placeholder="Device name" required>
     </div>
     <div class="col-md-4">
-      <input name="host" class="form-control" placeholder="Host/IP (or full URL for HTTP)" required>
+      <input name="host" class="form-control" placeholder="Host (IP or domain)" required>
     </div>
     <div class="col-md-3">
-      <select name="kind" class="form-select">
-        <option value="icmp" selected>ICMP (ping)</option>
-        <option value="http">HTTP (website/API)</option>
-        <option value="tcp">TCP Port (e.g., printer 9100)</option>
-      </select>
-    </div>
-    <div class="col-md-1">
-      <input name="port" class="form-control" placeholder="Port" type="number" min="1" max="65535">
+      <input name="kind" class="form-control" placeholder="Kind (server, db, etc.)" value="generic">
     </div>
     <div class="col-md-1">
       <button class="btn btn-primary w-100">Add</button>
@@ -57,7 +50,7 @@
       <tr id="row-{{ d.id }}">
         <td class="c-name">{{ d.name }}</td>
         <td class="c-host">{{ d.host }}</td>
-        <td class="c-kind text-uppercase">{{ d.kind }}</td>
+        <td class="c-kind">{{ d.kind }}</td>
         <td class="c-status">
           {% if cr %}
             {% if cr.status == "up" %}
@@ -83,76 +76,73 @@
       </tr>
       {% endfor %}
     </tbody>
+    
   </table>
 
   <script>
-  // Whether to render Actions column on newly added rows during AJAX updates
-  const canDelete = {{ 'true' if session.logged_in else 'false' }};
-
-  function badge(status) {
-    if (status === "up")       return '<span class="badge bg-success">UP</span>';
-    if (status === "degraded") return '<span class="badge bg-warning text-dark">DEGRADED</span>';
-    if (status === "down")     return '<span class="badge bg-danger">DOWN</span>';
-    return '<span class="badge bg-secondary">Unknown</span>';
-  }
-
-  async function refreshDevices() {
-    try {
-      const resp = await fetch("{{ url_for('routes.api_devices') }}", { cache: "no-store" });
-      if (!resp.ok) return;
-      const data = await resp.json();
-
-      const tbody = document.getElementById("devices-body");
-      const seen = new Set();
-
-      data.forEach(dev => {
-        seen.add(dev.id);
-        const row = document.getElementById(`row-${dev.id}`);
-        const latency = (dev.latency_ms ?? "-");
-        const last = (dev.last_check ?? "never");
-        const kind = (dev.kind || "").toUpperCase();
-
-        if (row) {
-          row.querySelector(".c-status").innerHTML = badge(dev.status);
-          row.querySelector(".c-latency").textContent = (latency === "-" ? "-" : `${latency} ms`);
-          row.querySelector(".c-last").textContent = last;
-          row.querySelector(".c-kind").textContent = kind;
-          row.querySelector(".c-host").textContent = dev.host;
-          row.querySelector(".c-name").textContent = dev.name;
-        } else {
-          // New device appeared: append row
-          const tr = document.createElement("tr");
-          tr.id = `row-${dev.id}`;
-          tr.innerHTML = `
-            <td class="c-name">${dev.name}</td>
-            <td class="c-host">${dev.host}</td>
-            <td class="c-kind text-uppercase">${kind}</td>
-            <td class="c-status">${badge(dev.status)}</td>
-            <td class="c-latency">${latency === "-" ? "-" : latency + " ms"}</td>
-            <td class="c-last">${last}</td>
-            ${canDelete ? `
-            <td>
-              <form method="post" action="/devices/${dev.id}/delete">
-                <button class="btn btn-sm btn-danger" onclick="return confirm('Delete this device?')">Delete</button>
-              </form>
-            </td>` : ``}
-          `;
-          tbody.appendChild(tr);
-        }
-      });
-
-      // Remove rows no longer present
-      for (const tr of Array.from(tbody.querySelectorAll("tr"))) {
-        const id = parseInt(tr.id.replace("row-", ""), 10);
-        if (!seen.has(id)) tr.remove();
-      }
-    } catch (e) {
-      console.warn("refreshDevices error:", e);
+    const canDelete = {{ 'true' if session.logged_in else 'false' }};
+    
+    function badge(status) {
+      if (status === "up")       return '<span class="badge bg-success">UP</span>';
+      if (status === "degraded") return '<span class="badge bg-warning text-dark">DEGRADED</span>';
+      if (status === "down")     return '<span class="badge bg-danger">DOWN</span>';
+      return '<span class="badge bg-secondary">Unknown</span>';
     }
-  }
-
-  // Run immediately, then every 10s (adjust if needed)
-  refreshDevices();
-  setInterval(refreshDevices, 10000);
-  </script>
+    
+    async function refreshDevices() {
+      try {
+        const resp = await fetch("{{ url_for('routes.api_devices') }}", { cache: "no-store" });
+        if (!resp.ok) return;
+        const data = await resp.json();
+    
+        const tbody = document.getElementById("devices-body");
+        const seen = new Set();
+    
+        data.forEach(dev => {
+          seen.add(dev.id);
+          const row = document.getElementById(`row-${dev.id}`);
+          const latency = (dev.latency_ms ?? "-");
+          const last = (dev.last_check ?? "never");
+    
+          if (row) {
+            row.querySelector(".c-status").innerHTML = badge(dev.status);
+            row.querySelector(".c-latency").textContent = (latency === "-" ? "-" : `${latency} ms`);
+            row.querySelector(".c-last").textContent = last;
+          } else {
+            // new row
+            const tr = document.createElement("tr");
+            tr.id = `row-${dev.id}`;
+            tr.innerHTML = `
+              <td class="c-name">${dev.name}</td>
+              <td class="c-host">${dev.host}</td>
+              <td class="c-kind">${dev.kind}</td>
+              <td class="c-status">${badge(dev.status)}</td>
+              <td class="c-latency">${latency === "-" ? "-" : latency + " ms"}</td>
+              <td class="c-last">${last}</td>
+              ${canDelete ? `
+                <td>
+                  <form method="post" action="/devices/${dev.id}/delete">
+                    <button class="btn btn-sm btn-danger" onclick="return confirm('Delete this device?')">Delete</button>
+                  </form>
+                </td>` : ``}
+            `;
+            tbody.appendChild(tr);
+          }
+        });
+    
+        // remove rows no longer present
+        for (const tr of Array.from(tbody.querySelectorAll("tr"))) {
+          const id = parseInt(tr.id.replace("row-", ""), 10);
+          if (!seen.has(id)) tr.remove();
+        }
+      } catch (e) {
+        console.warn("refreshDevices error:", e);
+      }
+    }
+    
+    // run now, then every 10s (adjust as needed)
+    refreshDevices();
+    setInterval(refreshDevices, 10000);
+    </script>
+    
 {% endblock %}
