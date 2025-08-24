@@ -1,0 +1,23 @@
+services:
+  web:
+    build: .
+    container_name: monitor-web
+    command: gunicorn -b 0.0.0.0:5000 run:app
+    ports:
+      - "5000:5000"
+    environment:
+      - DB_URL=sqlite:////app/monitor.db
+      - FLASK_ENV=production
+    volumes:
+      - .:/app
+
+  worker:
+    build: .
+    container_name: monitor-worker
+    command: python monitor.py
+    depends_on:
+      - web
+    environment:
+      - DB_URL=sqlite:////app/monitor.db
+    volumes:
+      - .:/app
