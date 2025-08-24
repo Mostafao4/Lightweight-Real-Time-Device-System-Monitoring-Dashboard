@@ -2,6 +2,13 @@ from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timezone
 db = SQLAlchemy()
 
+
+# -- Simple app-wide settings store
+class Config(db.Model):
+    __tablename__ = "config"
+    key = db.Column(db.String(100), primary_key=True)
+    value = db.Column(db.Text)
+# -- Devices to monitor
 class Device(db.Model):
     __tablename__ = "devices"
     id = db.Column(db.Integer, primary_key=True)

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+
+{% block content %}
+<h2 class="mb-3">Notifications</h2>
+
+<form method="post" class="row g-3">
+  <div class="col-md-6">
+    <label class="form-label">Telegram Bot Token</label>
+    <input name="telegram_bot_token" class="form-control" value="{{ bot_token or '' }}" placeholder="123456:ABCDEF...">
+    <div class="form-text">
+      Create a bot with <a href="https://t.me/BotFather" target="_blank">BotFather</a> and paste the token here.
+    </div>
+  </div>
+
+  <div class="col-md-6">
+    <label class="form-label">Telegram Chat ID</label>
+    <input name="telegram_chat_id" class="form-control" value="{{ chat_id or '' }}" placeholder="e.g. 123456789">
+    <div class="form-text">
+      Get your chat ID from <a href="https://t.me/useridinfobot" target="_blank">@useridinfobot</a> or <a href="https://t.me/userinfobot" target="_blank">@userinfobot</a>, then paste it here.
+    </div>
+  </div>
+
+  <div class="col-12">
+    <button class="btn btn-primary">Save</button>
+    <a href="{{ url_for('routes.index') }}" class="btn btn-outline-secondary">Back</a>
+  </div>
+</form>
+{% endblock %}

@@ -11,12 +11,15 @@ import re
 from datetime import datetime, timezone
 import csv
 import io
+from app.config_store import get_config, set_config
 
 bp = Blueprint("routes", __name__)
 
 # ---- Auth config from environment
 ADMIN_USER = os.getenv("ADMIN_USER", "admin")
 ADMIN_PASS = os.getenv("ADMIN_PASS", "password")
+
+
 
 
 # ================================
@@ -229,6 +232,18 @@ def delete_device(device_id):
     db.session.commit()
     flash("Device deleted", "success")
     return redirect(url_for("routes.index"))
+
+@bp.route("/settings", methods=["GET", "POST"])
+@login_required
+def settings():
+    bot_token = get_config("TELEGRAM_BOT_TOKEN", "")
+    chat_id = get_config("TELEGRAM_CHAT_ID", "")
+    if request.method == "POST":
+        set_config("TELEGRAM_BOT_TOKEN", (request.form.get("telegram_bot_token") or "").strip())
+        set_config("TELEGRAM_CHAT_ID", (request.form.get("telegram_chat_id") or "").strip())
+        flash("Settings saved", "success")
+        return redirect(url_for("routes.settings"))
+    return render_template("settings.html", bot_token=bot_token, chat_id=chat_id)
 
 # ------------------------------
 # JSON API for AJAX updates (read-only)

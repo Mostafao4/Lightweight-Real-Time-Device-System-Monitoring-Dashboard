@@ -6,14 +6,17 @@ from dotenv import load_dotenv
 
 from app import create_app, db
 from app.models import Device, CheckResult
+from alerts import notify_telegram, send_email
 
 load_dotenv()
 
+# ---- Tuning (env)
 INTERVAL_SECONDS = int(os.getenv("INTERVAL_SECONDS", "30"))
-PING_TIMEOUT_MS  = int(os.getenv("PING_TIMEOUT_MS", "1000"))  # 1s
-HTTP_TIMEOUT_S   = float(os.getenv("HTTP_TIMEOUT_S", "3.0"))  # 3s
-TCP_TIMEOUT_S    = float(os.getenv("TCP_TIMEOUT_S", "2.0"))   # 2s
-DEGRADED_MS      = int(os.getenv("DEGRADED_MS", "800"))       # HTTP latency >= degraded
+PING_TIMEOUT_MS  = int(os.getenv("PING_TIMEOUT_MS", "1000"))    # 1s
+HTTP_TIMEOUT_S   = float(os.getenv("HTTP_TIMEOUT_S", "3.0"))    # 3s
+TCP_TIMEOUT_S    = float(os.getenv("TCP_TIMEOUT_S", "2.0"))     # 2s
+DEGRADED_MS      = int(os.getenv("DEGRADED_MS", "800"))         # HTTP latency >= degraded
+ALERT_ON_RECOVERY = os.getenv("ALERT_ON_RECOVERY", "true").lower() == "true"
 
 IP_RE = re.compile(r"^\d{1,3}(\.\d{1,3}){3}$")
 
@@ -46,7 +49,7 @@ def check_icmp(host):
         return "down", None, f"ping error: {e}"
 
 def normalize_url(host_or_url):
-    return host_or_url if host_or_url.startswith(("http://","https://")) else "http://" + host_or_url
+    return host_or_url if host_or_url.startswith(("http://", "https://")) else "http://" + host_or_url
 
 def check_http(host_or_url):
     url = normalize_url(host_or_url)
@@ -98,12 +101,15 @@ def run_once():
             else:
                 status, latency, msg = check_tcp(d.host)
 
-            prev = (CheckResult.query
-                    .filter_by(device_id=d.id)
-                    .order_by(CheckResult.created_at.desc())
-                    .first())
+            prev = (
+                CheckResult.query
+                .filter_by(device_id=d.id)
+                .order_by(CheckResult.created_at.desc())
+                .first()
+            )
             changed = (not prev) or (prev.status != status)
 
+            # persist result
             db.session.add(CheckResult(
                 device_id=d.id,
                 status=status,
@@ -114,6 +120,17 @@ def run_once():
             db.session.commit()
 
             print(f"[monitor] {d.name}@{d.host} kind={k} status={status} latency={latency}ms changed={changed} msg={msg}", flush=True)
+
+            # alerts on state-change (optionally include recovery)
+            if changed and (status != "up" or ALERT_ON_RECOVERY):
+                human_latency = "-" if latency is None else f"{latency} ms"
+                text = f"🔔 {d.name} ({d.host}) → {status.upper()}  [{k}]  latency={human_latency}  note={msg}"
+                ok_tg, info_tg = notify_telegram(text)
+                ok_em, info_em = send_email(
+                    subject=f"[Monitor] {d.name} is {status.upper()}",
+                    body=f"{d.name} ({d.host})\nkind: {k}\nstatus: {status}\nlatency: {human_latency}\nmsg: {msg}\n"
+                )
+                print(f"[alert] telegram={ok_tg} {info_tg} | email={ok_em} {info_em}", flush=True)
 
 def run_loop():
     while True:
