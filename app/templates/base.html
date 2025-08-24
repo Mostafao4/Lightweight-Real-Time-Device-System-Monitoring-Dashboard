@@ -19,12 +19,14 @@
     <a class="navbar-brand" href="{{ url_for('routes.index') }}">Device Monitor</a>
     <div class="ms-auto">
       {% if session.logged_in %}
-        <a class="btn btn-sm btn-outline-light me-2" href="{{ url_for('routes.settings') }}">Settings</a>
-        <a class="btn btn-sm btn-outline-danger" href="{{ url_for('routes.logout') }}">Logout</a>
-      {% else %}
-        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('routes.login') }}">Login</a>
-      {% endif %}
-    </div>
+    <a class="btn btn-sm btn-outline-light me-2" href="{{ url_for('routes.settings') }}">Settings</a>
+    <a class="btn btn-sm btn-outline-danger" href="{{ url_for('routes.logout') }}">Logout</a>
+  {% else %}
+    {% if request.endpoint != 'routes.login' %}
+      <a class="btn btn-sm btn-outline-primary" href="{{ url_for('routes.login') }}">Login</a>
+    {% endif %}
+  {% endif %}
+</div>
   </div>
 </nav>
 
