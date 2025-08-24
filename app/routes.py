@@ -19,10 +19,14 @@ ADMIN_USER = os.getenv("ADMIN_USER", "admin")
 ADMIN_PASS = os.getenv("ADMIN_PASS", "password")
 
 
+# ================================
+# NEW: History helpers + endpoints
+# ================================
 
-# --- helper to parse ?from= & ?to= (YYYY-MM-DD or ISO)
+# helper to parse ?from= & ?to= (YYYY-MM-DD or full ISO)
 def _parse_dt(s):
-    if not s: return None
+    if not s:
+        return None
     try:
         # accepts '2025-08-24' or '2025-08-24 15:20:00'
         return datetime.fromisoformat(s)
@@ -44,6 +48,7 @@ def device_detail(device_id):
         q = q.filter(CheckResult.created_at >= q_from)
     if q_to:
         q = q.filter(CheckResult.created_at <= q_to)
+
     results = (
         q.order_by(desc(CheckResult.created_at))
          .limit(limit)
@@ -72,6 +77,7 @@ def api_device_history(device_id):
         q = q.filter(CheckResult.created_at >= q_from)
     if q_to:
         q = q.filter(CheckResult.created_at <= q_to)
+
     rows = (
         q.order_by(asc(CheckResult.created_at))
          .limit(limit)
@@ -108,7 +114,12 @@ def device_history_csv(device_id):
     w = csv.writer(buf)
     w.writerow(["timestamp", "status", "latency_ms", "message"])
     for r in rows:
-        w.writerow([r.created_at.isoformat(sep=" ", timespec="seconds"), r.status, (r.latency_ms if r.latency_ms is not None else ""), r.message or ""])
+        w.writerow([
+            r.created_at.isoformat(sep=" ", timespec="seconds"),
+            r.status,
+            (r.latency_ms if r.latency_ms is not None else ""),
+            r.message or ""
+        ])
     out = buf.getvalue()
     return Response(
         out,
@@ -117,6 +128,9 @@ def device_history_csv(device_id):
     )
 
 
+# =================================
+# Existing auth + dashboard endpoints
+# =================================
 
 # ---- No-cache for auth-sensitive pages
 @bp.after_app_request
