@@ -2,6 +2,7 @@ from flask import (
     Response, Blueprint, render_template, request, redirect,
     url_for, jsonify, session, flash, abort, request as flask_request
 )
+from alerts import send_email
 from app import db
 from app.models import Device, CheckResult
 from sqlalchemy import desc, asc
@@ -236,15 +237,57 @@ def delete_device(device_id):
 @bp.route("/settings", methods=["GET", "POST"])
 @login_required
 def settings():
+    # Load current values (DB, fallback to env handled in alerts)
     bot_token = get_config("TELEGRAM_BOT_TOKEN", "")
-    chat_id = get_config("TELEGRAM_CHAT_ID", "")
+    chat_id   = get_config("TELEGRAM_CHAT_ID", "")
+
+    smtp_host = get_config("SMTP_HOST", "")
+    smtp_port = get_config("SMTP_PORT", "587")
+    smtp_user = get_config("SMTP_USER", "")
+    smtp_pass = get_config("SMTP_PASS", "")
+    smtp_starttls = get_config("SMTP_STARTTLS", "true")  # 'true'|'false'
+    alert_email_from = get_config("ALERT_EMAIL_FROM", smtp_user or "")
+    alert_email_to   = get_config("ALERT_EMAIL_TO", "")
+
     if request.method == "POST":
+        # Save Telegram
         set_config("TELEGRAM_BOT_TOKEN", (request.form.get("telegram_bot_token") or "").strip())
-        set_config("TELEGRAM_CHAT_ID", (request.form.get("telegram_chat_id") or "").strip())
+        set_config("TELEGRAM_CHAT_ID",   (request.form.get("telegram_chat_id") or "").strip())
+        # Save Email/SMTP
+        set_config("SMTP_HOST", (request.form.get("smtp_host") or "").strip())
+        set_config("SMTP_PORT", (request.form.get("smtp_port") or "587").strip())
+        set_config("SMTP_USER", (request.form.get("smtp_user") or "").strip())
+        set_config("SMTP_PASS", (request.form.get("smtp_pass") or "").strip())
+        set_config("SMTP_STARTTLS", (request.form.get("smtp_starttls") or "true").strip().lower())
+        set_config("ALERT_EMAIL_FROM", (request.form.get("alert_email_from") or "").strip())
+        set_config("ALERT_EMAIL_TO",   (request.form.get("alert_email_to") or "").strip())
+
         flash("Settings saved", "success")
         return redirect(url_for("routes.settings"))
-    return render_template("settings.html", bot_token=bot_token, chat_id=chat_id)
 
+    return render_template(
+        "settings.html",
+        bot_token=bot_token, chat_id=chat_id,
+        smtp_host=smtp_host, smtp_port=smtp_port,
+        smtp_user=smtp_user, smtp_pass=smtp_pass,
+        smtp_starttls=smtp_starttls,
+        alert_email_from=alert_email_from, alert_email_to=alert_email_to
+    )
+    
+    
+    
+@bp.post("/settings/test-email")
+@login_required
+def test_email():
+    ok, info = send_email(
+        subject="[Monitor] Test email",
+        body="This is a test email from your Device Monitor settings."
+    )
+    if ok:
+        flash("✅ Test email sent.", "success")
+    else:
+        flash(f"❌ Could not send test email: {info}", "danger")
+    return redirect(url_for("routes.settings"))
 # ------------------------------
 # JSON API for AJAX updates (read-only)
 # ------------------------------

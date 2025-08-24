@@ -2,28 +2,74 @@
 {% block title %}Settings{% endblock %}
 
 {% block content %}
-<h2 class="mb-3">Notifications</h2>
+<h2 class="mb-4">Notifications</h2>
 
 <form method="post" class="row g-3">
+  <!-- Telegram -->
+  <div class="col-12">
+    <h5>Telegram</h5>
+  </div>
   <div class="col-md-6">
     <label class="form-label">Telegram Bot Token</label>
     <input name="telegram_bot_token" class="form-control" value="{{ bot_token or '' }}" placeholder="123456:ABCDEF...">
     <div class="form-text">
-      Create a bot with <a href="https://t.me/BotFather" target="_blank">BotFather</a> and paste the token here.
+      Create a bot with <a href="https://t.me/BotFather" target="_blank">BotFather</a>.
     </div>
   </div>
-
   <div class="col-md-6">
     <label class="form-label">Telegram Chat ID</label>
     <input name="telegram_chat_id" class="form-control" value="{{ chat_id or '' }}" placeholder="e.g. 123456789">
     <div class="form-text">
-      Get your chat ID from <a href="https://t.me/useridinfobot" target="_blank">@useridinfobot</a> or <a href="https://t.me/userinfobot" target="_blank">@userinfobot</a>, then paste it here.
+      Get it from <a href="https://t.me/useridinfobot" target="_blank">@useridinfobot</a> or <a href="https://t.me/userinfobot" target="_blank">@userinfobot</a>.
     </div>
+  </div>
+
+  <hr class="mt-4">
+
+  <!-- Email (SMTP) -->
+  <div class="col-12">
+    <h5>Email (SMTP)</h5>
+  </div>
+  <div class="col-md-6">
+    <label class="form-label">SMTP Host</label>
+    <input name="smtp_host" class="form-control" value="{{ smtp_host or '' }}" placeholder="smtp.gmail.com">
+  </div>
+  <div class="col-md-3">
+    <label class="form-label">SMTP Port</label>
+    <input name="smtp_port" type="number" class="form-control" value="{{ smtp_port or '587' }}" placeholder="587">
+  </div>
+  <div class="col-md-3">
+    <label class="form-label">Use STARTTLS</label>
+    <select name="smtp_starttls" class="form-select">
+      <option value="true"  {% if smtp_starttls == 'true' %}selected{% endif %}>true</option>
+      <option value="false" {% if smtp_starttls == 'false' %}selected{% endif %}>false</option>
+    </select>
+  </div>
+  <div class="col-md-6">
+    <label class="form-label">SMTP Username</label>
+    <input name="smtp_user" class="form-control" value="{{ smtp_user or '' }}" placeholder="you@gmail.com">
+  </div>
+  <div class="col-md-6">
+    <label class="form-label">SMTP Password / App Password</label>
+    <input name="smtp_pass" type="password" class="form-control" value="{{ smtp_pass or '' }}" placeholder="App password recommended">
+  </div>
+  <div class="col-md-6">
+    <label class="form-label">From Email</label>
+    <input name="alert_email_from" class="form-control" value="{{ alert_email_from or '' }}" placeholder="you@gmail.com">
+  </div>
+  <div class="col-md-6">
+    <label class="form-label">To Email</label>
+    <input name="alert_email_to" class="form-control" value="{{ alert_email_to or '' }}" placeholder="alerts@yourdomain.com">
   </div>
 
   <div class="col-12">
     <button class="btn btn-primary">Save</button>
     <a href="{{ url_for('routes.index') }}" class="btn btn-outline-secondary">Back</a>
+    <button form="test-email-form" class="btn btn-outline-primary ms-2">Send test email</button>
   </div>
 </form>
+
+<!-- Separate form for test to avoid overwriting fields -->
+<form id="test-email-form" method="post" action="{{ url_for('routes.test_email') }}"></form>
+
 {% endblock %}
