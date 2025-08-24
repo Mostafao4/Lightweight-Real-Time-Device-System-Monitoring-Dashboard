@@ -1,23 +1,32 @@
+version: '3.8'
+
 services:
   web:
     build: .
     container_name: monitor-web
-    command: gunicorn -b 0.0.0.0:5000 run:app
+    restart: unless-stopped
     ports:
       - "5000:5000"
     environment:
-      - DB_URL=sqlite:////app/monitor.db
+      - FLASK_APP=run.py
       - FLASK_ENV=production
+      - DATABASE_URL=sqlite:///instance\monitor.db
+      - SECRET_KEY=your-secret-key-here
     volumes:
-      - .:/app
-
+      - ./instance:/app/instance
+    
   worker:
     build: .
     container_name: monitor-worker
+    restart: unless-stopped
     command: python monitor.py
+    environment:
+      - DATABASE_URL=sqlite:///instance\monitor.db
+      - INTERVAL_SECONDS=30
+      - PING_TIMEOUT_MS=1000
+      - HTTP_TIMEOUT_S=3.0
+      - TCP_TIMEOUT_S=2.0
+    volumes:
+      - ./instance:/app/instance
     depends_on:
       - web
-    environment:
-      - DB_URL=sqlite:////app/monitor.db
-    volumes:
-      - .:/app

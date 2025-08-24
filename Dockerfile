@@ -1,20 +1,30 @@
 # Dockerfile
 FROM python:3.10-slim
 
-# Set working directory
 WORKDIR /app
 
-# Install system deps (ping, gcc, etc.)
+# Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    iputils-ping netcat gcc \
+    iputils-ping \
+    netcat-traditional \
+    gcc \
+    libpq-dev \
+    python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python deps
+# Install Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy all project files
+# Copy application code
 COPY . .
 
-# Default command (overridden in docker-compose)
-CMD ["python", "run.py"]
+# Create instance directory
+RUN mkdir -p instance && chmod 777 instance
+
+# Set environment variables
+ENV FLASK_APP=run.py
+ENV PYTHONUNBUFFERED=1
+
+# Default command
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "run:app"]
