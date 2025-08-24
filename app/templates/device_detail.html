@@ -86,7 +86,7 @@
 <!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-  // We’ll use simple category labels so we don't need a date adapter
+  // Chronological labels and latency values (null when DOWN)
   const labels = [
     {% for r in results_chrono %}
       "{{ r.created_at.strftime('%Y-%m-%d %H:%M:%S') }}",
@@ -97,29 +97,88 @@
       {{ 'null' if r.latency_ms is none else r.latency_ms }},
     {% endfor %}
   ];
+  const statuses = [
+    {% for r in results_chrono %}
+      "{{ r.status }}",
+    {% endfor %}
+  ];
+
+  // Build status marker series on a secondary axis (y2 = 0..1)
+  const downMarks = statuses.map(s => s === "down" ? 1 : null);
+  const degradedMarks = statuses.map(s => s === "degraded" ? 1 : null);
 
   const ctx = document.getElementById('latencyChart').getContext('2d');
   const chart = new Chart(ctx, {
     type: 'line',
     data: {
       labels,
-      datasets: [{
-        label: 'Latency (ms)',
-        data: latencies,
-        spanGaps: true,    // skip nulls (DOWN checks) but keep the line
-        tension: 0.25,
-        pointRadius: 2,
-        fill: false
-      }]
+      datasets: [
+        // 1) Latency line (left axis)
+        {
+          label: 'Latency (ms)',
+          data: latencies,
+          spanGaps: true,           // skip nulls but connect line
+          tension: 0.25,
+          pointRadius: 2,
+          fill: false,
+          yAxisID: 'y'
+        },
+        // 2) DOWN markers (right axis 0..1)
+        {
+          label: 'DOWN',
+          data: downMarks,
+          type: 'line',
+          showLine: false,
+          spanGaps: false,
+          pointRadius: 5,
+          pointHoverRadius: 6,
+          borderWidth: 0,
+          pointBackgroundColor: 'rgba(220, 53, 69, 1)',   // red
+          pointBorderColor: 'rgba(220, 53, 69, 1)',
+          yAxisID: 'y2'
+        },
+        // 3) DEGRADED markers (right axis 0..1)
+        {
+          label: 'DEGRADED',
+          data: degradedMarks,
+          type: 'line',
+          showLine: false,
+          spanGaps: false,
+          pointRadius: 5,
+          pointHoverRadius: 6,
+          borderWidth: 0,
+          pointBackgroundColor: 'rgba(255, 193, 7, 1)',   // amber
+          pointBorderColor: 'rgba(255, 193, 7, 1)',
+          yAxisID: 'y2'
+        }
+      ]
     },
     options: {
+      responsive: true,
+      maintainAspectRatio: false, // respect fixed container size
       scales: {
-        x: { title: { display: true, text: 'Time' } },
-        y: { title: { display: true, text: 'Latency (ms)' }, beginAtZero: true }
+        // Left axis: latency in ms
+        y: {
+          title: { display: true, text: 'Latency (ms)' },
+          beginAtZero: true
+        },
+        // Right axis: status markers only (0..1), hidden ticks
+        y2: {
+          position: 'right',
+          min: 0, max: 1,
+          grid: { display: false },
+          ticks: { display: false },
+          title: { display: false }
+        },
+        x: {
+          title: { display: true, text: 'Time' }
+        }
       },
-      plugins: { legend: { display: true } },
-      maintainAspectRatio: false
+      plugins: {
+        legend: { display: true }
+      }
     }
   });
 </script>
+
 {% endblock %}
