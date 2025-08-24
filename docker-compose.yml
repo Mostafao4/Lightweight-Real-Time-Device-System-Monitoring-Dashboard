@@ -7,21 +7,22 @@ services:
     restart: unless-stopped
     ports:
       - "5000:5000"
+    env_file:
+      - .env
     environment:
       - FLASK_APP=run.py
       - FLASK_ENV=production
-      - DATABASE_URL=sqlite:///instance\monitor.db
+      - DATABASE_URL=sqlite:///monitor.db
       - SECRET_KEY=your-secret-key-here
     volumes:
       - ./instance:/app/instance
-    
   worker:
     build: .
     container_name: monitor-worker
     restart: unless-stopped
     command: python monitor.py
     environment:
-      - DATABASE_URL=sqlite:///instance\monitor.db
+      - DATABASE_URL=sqlite:///monitor.db
       - INTERVAL_SECONDS=30
       - PING_TIMEOUT_MS=1000
       - HTTP_TIMEOUT_S=3.0
